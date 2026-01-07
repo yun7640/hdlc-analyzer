@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KEQAS HDLC Cumulative Trend Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 40px;
+            margin-bottom: 30px;
+            border: 2px dashed rgba(255,255,255,0.2);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .upload-section.dragover {
+            border-color: #764ba2;
+            background: rgba(118, 75, 162, 0.2);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.7;
+        }
+
+        .upload-section h2 {
+            margin-bottom: 15px;
+            color: #fff;
+        }
+
+        .upload-section p {
+            margin-bottom: 20px;
+            color: #aaa;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .file-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,255,0,0.1);
+            border-radius: 10px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Dashboard Section */
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.show {
+            display: block;
+        }
+
+        /* Tabs */
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 15px 30px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 10px 10px 0 0;
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .tab-content {
+            display: none;
+            background: rgba(255,255,255,0.05);
+            border-radius: 0 15px 15px 15px;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            height: 450px;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1200px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-grid .chart-container {
+            height: 350px;
+        }
+
+        .chart-title {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            color: #fff;
+        }
+
+        /* Tables */
+        .table-section {
+            margin-top: 30px;
+        }
+
+        .table-section h3 {
+            margin-bottom: 15px;
+            color: #fff;
+            font-size: 1.3em;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(0,0,0,0.2);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        th {
+            background: rgba(102, 126, 234, 0.3);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .excellent {
+            background: rgba(46, 204, 113, 0.2) !important;
+            color: #2ecc71;
+        }
+
+        .warning {
+            background: rgba(241, 196, 15, 0.2) !important;
+            color: #f1c40f;
+        }
+
+        .exceed {
+            background: rgba(231, 76, 60, 0.2) !important;
+            color: #e74c3c;
+        }
+
+        /* Interpretation Box */
+        .interpretation {
+            background: rgba(102, 126, 234, 0.1);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 0 10px 10px 0;
+            margin-top: 20px;
+        }
+
+        .interpretation h4 {
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+
+        .interpretation ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .interpretation li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .interpretation li::before {
+            content: ">";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+        }
+
+        /* Error Message */
+        .error-message {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-card h4 {
+            font-size: 0.9em;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        .summary-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .summary-card .label {
+            font-size: 0.9em;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>KEQAS HDLC Cumulative Trend Analyzer</h1>
+            <p>6 Major Manufacturers Cumulative CV%, Bias%, and TG Influence Analysis</p>
+        </header>
+
+        <!-- Upload Section -->
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-icon">[ Upload ]</div>
+            <h2>Excel File Upload</h2>
+            <p>Drag and drop your KEQAS HDLC data file here, or click the button below</p>
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    Select Excel File
+                </button>
+            </div>
+            <div class="file-info" id="fileInfo">
+                <strong>Selected File:</strong> <span id="fileName"></span>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div class="error-message" id="errorMessage"></div>
+
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Analyzing data...</p>
+        </div>
+
+        <!-- Dashboard -->
+        <div class="dashboard" id="dashboard">
+            <!-- Summary Cards -->
+            <div class="summary-cards" id="summaryCards"></div>
+
+            <!-- Tabs -->
+            <div class="tab-container">
+                <button class="tab-btn active" onclick="openTab('cvTab')">CV% Analysis</button>
+                <button class="tab-btn" onclick="openTab('biasTab')">Bias% Analysis</button>
+                <button class="tab-btn" onclick="openTab('tgTab')">TG Influence</button>
+            </div>
+
+            <!-- CV% Tab -->
+            <div class="tab-content active" id="cvTab">
+                <div class="chart-container">
+                    <canvas id="cvChart"></canvas>
+                </div>
+                <div class="table-section">
+                    <h3>CV% Cumulative Analysis Summary</h3>
+                    <div class="table-wrapper" id="cvSummaryTable"></div>
+                </div>
+                <div class="table-section">
+                    <h3>Round-by-Round Cumulative CV%</h3>
+                    <div class="table-wrapper" id="cvDetailTable"></div>
+                </div>
+                <div class="interpretation">
+                    <h4>CV% Interpretation Guide</h4>
+                    <ul>
+                        <li><span class="excellent">CV% &lt; 4%</span>: Excellent precision (NCEP guideline)</li>
+                        <li><span class="warning">CV% 4-5%</span>: Acceptable but needs monitoring</li>
+                        <li><span class="exceed">CV% &gt; 5%</span>: Exceeds allowable limit</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Bias% Tab -->
+            <div class="tab-content" id="biasTab">
+                <div class="chart-container">
+                    <canvas id="biasChart"></canvas>
+                </div>
+                <div class="table-section">
+                    <h3>Bias% Cumulative Analysis Summary</h3>
+                    <div class="table-wrapper" id="biasSummaryTable"></div>
+                </div>
+                <div class="table-section">
+                    <h3>Round-by-Round Cumulative Bias%</h3>
+                    <div class="table-wrapper" id="biasDetailTable"></div>
+                </div>
+                <div class="interpretation">
+                    <h4>Bias% Interpretation Guide</h4>
+                    <ul>
+                        <li><span class="excellent">|Bias%| &lt; 2%</span>: Excellent accuracy</li>
+                        <li><span class="warning">|Bias%| 2-5%</span>: Acceptable range (NCEP guideline)</li>
+                        <li><span class="exceed">|Bias%| &gt; 5%</span>: Exceeds allowable limit</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- TG Influence Tab -->
+            <div class="tab-content" id="tgTab">
+                <div class="chart-grid">
+                    <div class="chart-container">
+                        <div class="chart-title">Low TG (&lt;100 mg/dL)</div>
+                        <canvas id="tgLowChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">Medium TG (100-150 mg/dL)</div>
+                        <canvas id="tgMedChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">High TG (&gt;150 mg/dL)</div>
+                        <canvas id="tgHighChart"></canvas>
+                    </div>
+                </div>
+                <div class="table-section">
+                    <h3>TG Influence Summary</h3>
+                    <div class="table-wrapper" id="tgSummaryTable"></div>
+                </div>
+                <div class="interpretation">
+                    <h4>TG Influence Interpretation</h4>
+                    <ul>
+                        <li><strong>TG Influence = High TG Bias% - Low TG Bias%</strong></li>
+                        <li>Positive value: Higher bias in high TG samples (potential TG interference)</li>
+                        <li>Negative value: Lower bias in high TG samples</li>
+                        <li>|Influence| &gt; 3%: Significant TG interference detected</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>KEQAS HDLC Cumulative Trend Analyzer | Powered by Chart.js & SheetJS</p>
+        </footer>
+    </div>
+
+    <script>
+        // ============================================================================
+        // Configuration
+        // ============================================================================
+        const CONFIG = {
+            majorManufacturers: ['Roche', 'Sekisui Medical', 'Beckman Coulter Inc.',
+                                 'Siemens Healthineers', 'Abbott', 'Wako'],
+            colors: {
+                'Roche': '#1f77b4',
+                'Sekisui Medical': '#ff7f0e',
+                'Beckman Coulter Inc.': '#2ca02c',
+                'Siemens Healthineers': '#9467bd',
+                'Abbott': '#e6194b',
+                'Wako': '#f032e6'
+            },
+            tgBins: [0, 100, 150, 500],
+            tgLabels: ['Low (<100)', 'Medium (100-150)', 'High (>150)'],
+            requiredColumns: ['세분류명', '회차년도', '회차', '변동계수', 'Bias%', '기관수', 'Taget value TG'],
+            thresholds: {
+                cv: { excellent: 4, warning: 5 },
+                bias: { excellent: 2, warning: 5 }
+            }
+        };
+
+        // Chart instances
+        let cvChartInstance = null;
+        let biasChartInstance = null;
+        let tgLowChartInstance = null;
+        let tgMedChartInstance = null;
+        let tgHighChartInstance = null;
+
+        // ============================================================================
+        // File Upload Handlers
+        // ============================================================================
+        const uploadSection = document.getElementById('uploadSection');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const loading = document.getElementById('loading');
+        const dashboard = document.getElementById('dashboard');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Drag and drop
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            // Validate file type
+            const validTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                               'application/vnd.ms-excel'];
+            if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
+                showError('Invalid file type. Please upload an Excel file (.xlsx or .xls)');
+                return;
+            }
+
+            fileName.textContent = file.name;
+            fileInfo.classList.add('show');
+            errorMessage.classList.remove('show');
+            loading.classList.add('show');
+            dashboard.classList.remove('show');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    processData(jsonData);
+                } catch (err) {
+                    showError('Error reading Excel file: ' + err.message);
+                    loading.classList.remove('show');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+            loading.classList.remove('show');
+        }
+
+        // ============================================================================
+        // Data Processing
+        // ============================================================================
+        function processData(rawData) {
+            try {
+                // Validate required columns
+                if (rawData.length === 0) {
+                    throw new Error('Excel file is empty');
+                }
+
+                const columns = Object.keys(rawData[0]);
+                const missingColumns = CONFIG.requiredColumns.filter(col => !columns.includes(col));
+                if (missingColumns.length > 0) {
+                    throw new Error('Missing required columns: ' + missingColumns.join(', '));
+                }
+
+                // Filter for major manufacturers
+                const filteredData = rawData.filter(row =>
+                    CONFIG.majorManufacturers.includes(row['세분류명'])
+                );
+
+                if (filteredData.length === 0) {
+                    throw new Error('No data found for major manufacturers');
+                }
+
+                // Create round order
+                filteredData.forEach(row => {
+                    row['회차순서'] = row['회차년도'] + '-' + String(row['회차']).padStart(2, '0');
+                });
+
+                // Get sorted round list
+                const roundSet = new Set(filteredData.map(row => row['회차순서']));
+                const roundList = Array.from(roundSet).sort();
+
+                // Calculate round statistics
+                const roundStats = calculateRoundStats(filteredData);
+
+                // Cumulative analysis
+                const { cumulativeCV, cumulativeBias, overallCV, overallBias, finalCV, finalBias } =
+                    analyzeCumulativeMetrics(roundStats, roundList);
+
+                // TG influence analysis
+                const { cumulativeBiasByTG, tgInfluence } =
+                    calculateTGInfluence(filteredData, roundList);
+
+                // Render dashboard
+                renderDashboard({
+                    roundList,
+                    cumulativeCV,
+                    cumulativeBias,
+                    overallCV,
+                    overallBias,
+                    finalCV,
+                    finalBias,
+                    cumulativeBiasByTG,
+                    tgInfluence
+                });
+
+                loading.classList.remove('show');
+                dashboard.classList.add('show');
+
+            } catch (err) {
+                showError('Data processing error: ' + err.message);
+            }
+        }
+
+        function calculateRoundStats(data) {
+            const stats = {};
+
+            data.forEach(row => {
+                const key = row['회차순서'] + '|' + row['세분류명'];
+                if (!stats[key]) {
+                    stats[key] = {
+                        round: row['회차순서'],
+                        manufacturer: row['세분류명'],
+                        cvValues: [],
+                        biasValues: [],
+                        counts: []
+                    };
+                }
+                stats[key].cvValues.push(row['변동계수']);
+                stats[key].biasValues.push(row['Bias%']);
+                stats[key].counts.push(row['기관수']);
+            });
+
+            // Calculate means
+            const result = [];
+            Object.values(stats).forEach(stat => {
+                result.push({
+                    round: stat.round,
+                    manufacturer: stat.manufacturer,
+                    cv: mean(stat.cvValues),
+                    bias: mean(stat.biasValues),
+                    count: mean(stat.counts)
+                });
+            });
+
+            return result;
+        }
+
+        function mean(arr) {
+            const valid = arr.filter(v => v !== null && v !== undefined && !isNaN(v));
+            return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+        }
+
+        function analyzeCumulativeMetrics(roundStats, roundList) {
+            const cumulativeCV = {};
+            const cumulativeBias = {};
+            const overallCV = [];
+            const overallBias = [];
+
+            // Initialize
+            CONFIG.majorManufacturers.forEach(mfr => {
+                cumulativeCV[mfr] = [];
+                cumulativeBias[mfr] = [];
+            });
+
+            // Calculate cumulative means
+            roundList.forEach((round, roundIdx) => {
+                const allCV = [];
+                const allBias = [];
+
+                CONFIG.majorManufacturers.forEach(mfr => {
+                    // Get all values up to current round
+                    const mfrStats = roundStats.filter(s =>
+                        s.manufacturer === mfr && roundList.indexOf(s.round) <= roundIdx
+                    );
+
+                    const cvValues = mfrStats.map(s => s.cv).filter(v => v !== null);
+                    const biasValues = mfrStats.map(s => s.bias).filter(v => v !== null);
+
+                    const cumCV = cvValues.length > 0 ? mean(cvValues) : null;
+                    const cumBias = biasValues.length > 0 ? mean(biasValues) : null;
+
+                    cumulativeCV[mfr].push(cumCV);
+                    cumulativeBias[mfr].push(cumBias);
+
+                    if (cumCV !== null) allCV.push(cumCV);
+                    if (cumBias !== null) allBias.push(cumBias);
+                });
+
+                overallCV.push(mean(allCV));
+                overallBias.push(mean(allBias));
+            });
+
+            // Final values
+            const finalCV = {};
+            const finalBias = {};
+            CONFIG.majorManufacturers.forEach(mfr => {
+                const cvArr = cumulativeCV[mfr].filter(v => v !== null);
+                const biasArr = cumulativeBias[mfr].filter(v => v !== null);
+                finalCV[mfr] = cvArr.length > 0 ? cvArr[cvArr.length - 1] : null;
+                finalBias[mfr] = biasArr.length > 0 ? biasArr[biasArr.length - 1] : null;
+            });
+
+            return { cumulativeCV, cumulativeBias, overallCV, overallBias, finalCV, finalBias };
+        }
+
+        function calculateTGInfluence(data, roundList) {
+            const cumulativeBiasByTG = {
+                'Low (<100)': {},
+                'Medium (100-150)': {},
+                'High (>150)': {}
+            };
+
+            // Categorize by TG
+            const getTGCategory = (tg) => {
+                if (tg < 100) return 'Low (<100)';
+                if (tg < 150) return 'Medium (100-150)';
+                return 'High (>150)';
+            };
+
+            // Initialize
+            CONFIG.tgLabels.forEach(label => {
+                CONFIG.majorManufacturers.forEach(mfr => {
+                    cumulativeBiasByTG[label][mfr] = [];
+                });
+            });
+
+            // Calculate for each TG category
+            CONFIG.tgLabels.forEach(tgLabel => {
+                roundList.forEach((round, roundIdx) => {
+                    CONFIG.majorManufacturers.forEach(mfr => {
+                        // Get all data up to current round for this TG category
+                        const subset = data.filter(row => {
+                            const rowTG = getTGCategory(row['Taget value TG']);
+                            return row['세분류명'] === mfr &&
+                                   rowTG === tgLabel &&
+                                   roundList.indexOf(row['회차순서']) <= roundIdx;
+                        });
+
+                        const biasValues = subset.map(s => s['Bias%']).filter(v => v !== null && !isNaN(v));
+                        const cumBias = biasValues.length > 0 ? mean(biasValues) : null;
+                        cumulativeBiasByTG[tgLabel][mfr].push(cumBias);
+                    });
+                });
+            });
+
+            // Calculate TG influence (High - Low)
+            const tgInfluence = {};
+            CONFIG.majorManufacturers.forEach(mfr => {
+                const highArr = cumulativeBiasByTG['High (>150)'][mfr].filter(v => v !== null);
+                const lowArr = cumulativeBiasByTG['Low (<100)'][mfr].filter(v => v !== null);
+
+                const highFinal = highArr.length > 0 ? highArr[highArr.length - 1] : null;
+                const lowFinal = lowArr.length > 0 ? lowArr[lowArr.length - 1] : null;
+
+                if (highFinal !== null && lowFinal !== null) {
+                    tgInfluence[mfr] = highFinal - lowFinal;
+                } else {
+                    tgInfluence[mfr] = null;
+                }
+            });
+
+            return { cumulativeBiasByTG, tgInfluence };
+        }
+
+        // ============================================================================
+        // Rendering
+        // ============================================================================
+        function renderDashboard(results) {
+            renderSummaryCards(results);
+            renderCVChart(results);
+            renderBiasChart(results);
+            renderTGCharts(results);
+            renderTables(results);
+        }
+
+        function renderSummaryCards(results) {
+            const container = document.getElementById('summaryCards');
+
+            // Find best performers
+            const cvRanking = Object.entries(results.finalCV)
+                .filter(([k, v]) => v !== null)
+                .sort((a, b) => a[1] - b[1]);
+
+            const biasRanking = Object.entries(results.finalBias)
+                .filter(([k, v]) => v !== null)
+                .sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]));
+
+            const bestCV = cvRanking[0];
+            const bestBias = biasRanking[0];
+
+            container.innerHTML = `
+                <div class="summary-card">
+                    <h4>Total Rounds</h4>
+                    <div class="value">${results.roundList.length}</div>
+                    <div class="label">${results.roundList[0]} ~ ${results.roundList[results.roundList.length-1]}</div>
+                </div>
+                <div class="summary-card">
+                    <h4>Manufacturers Analyzed</h4>
+                    <div class="value">${CONFIG.majorManufacturers.length}</div>
+                    <div class="label">Major Manufacturers</div>
+                </div>
+                <div class="summary-card">
+                    <h4>Best CV%</h4>
+                    <div class="value">${bestCV ? bestCV[1].toFixed(2) + '%' : 'N/A'}</div>
+                    <div class="label">${bestCV ? bestCV[0] : ''}</div>
+                </div>
+                <div class="summary-card">
+                    <h4>Best Bias%</h4>
+                    <div class="value">${bestBias ? (bestBias[1] >= 0 ? '+' : '') + bestBias[1].toFixed(2) + '%' : 'N/A'}</div>
+                    <div class="label">${bestBias ? bestBias[0] : ''}</div>
+                </div>
+            `;
+        }
+
+        function renderCVChart(results) {
+            const ctx = document.getElementById('cvChart').getContext('2d');
+
+            if (cvChartInstance) cvChartInstance.destroy();
+
+            const datasets = CONFIG.majorManufacturers.map(mfr => ({
+                label: mfr,
+                data: results.cumulativeCV[mfr],
+                borderColor: CONFIG.colors[mfr],
+                backgroundColor: CONFIG.colors[mfr] + '20',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: false,
+                pointRadius: 4,
+                pointHoverRadius: 8
+            }));
+
+            // Add overall mean
+            datasets.push({
+                label: 'Overall Mean',
+                data: results.overallCV,
+                borderColor: '#000',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                fill: false,
+                pointRadius: 0
+            });
+
+            cvChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: results.roundList,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Cumulative CV% Trend by Manufacturer',
+                            color: '#fff',
+                            font: { size: 16 }
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#ccc' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Round', color: '#ccc' },
+                            ticks: { color: '#aaa' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Cumulative CV%', color: '#ccc' },
+                            min: 0,
+                            max: 5,
+                            ticks: {
+                                color: '#aaa',
+                                callback: (v) => v + '%'
+                            },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderBiasChart(results) {
+            const ctx = document.getElementById('biasChart').getContext('2d');
+
+            if (biasChartInstance) biasChartInstance.destroy();
+
+            const datasets = CONFIG.majorManufacturers.map(mfr => ({
+                label: mfr,
+                data: results.cumulativeBias[mfr],
+                borderColor: CONFIG.colors[mfr],
+                backgroundColor: CONFIG.colors[mfr] + '20',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: false,
+                pointRadius: 4,
+                pointHoverRadius: 8
+            }));
+
+            // Add overall mean
+            datasets.push({
+                label: 'Overall Mean',
+                data: results.overallBias,
+                borderColor: '#000',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                fill: false,
+                pointRadius: 0
+            });
+
+            biasChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: results.roundList,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Cumulative Bias% Trend by Manufacturer',
+                            color: '#fff',
+                            font: { size: 16 }
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#ccc' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Round', color: '#ccc' },
+                            ticks: { color: '#aaa' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Cumulative Bias%', color: '#ccc' },
+                            min: -8,
+                            max: 10,
+                            ticks: {
+                                color: '#aaa',
+                                callback: (v) => (v >= 0 ? '+' : '') + v + '%'
+                            },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTGCharts(results) {
+            const labels = results.roundList;
+            const tgChartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#ccc', font: { size: 10 } }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#aaa', font: { size: 9 } },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    },
+                    y: {
+                        min: -10,
+                        max: 12,
+                        ticks: {
+                            color: '#aaa',
+                            callback: (v) => (v >= 0 ? '+' : '') + v + '%'
+                        },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    }
+                }
+            };
+
+            // Low TG
+            const ctxLow = document.getElementById('tgLowChart').getContext('2d');
+            if (tgLowChartInstance) tgLowChartInstance.destroy();
+            tgLowChartInstance = new Chart(ctxLow, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: CONFIG.majorManufacturers.map(mfr => ({
+                        label: mfr,
+                        data: results.cumulativeBiasByTG['Low (<100)'][mfr],
+                        borderColor: CONFIG.colors[mfr],
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: false,
+                        pointRadius: 3
+                    }))
+                },
+                options: tgChartOptions
+            });
+
+            // Medium TG
+            const ctxMed = document.getElementById('tgMedChart').getContext('2d');
+            if (tgMedChartInstance) tgMedChartInstance.destroy();
+            tgMedChartInstance = new Chart(ctxMed, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: CONFIG.majorManufacturers.map(mfr => ({
+                        label: mfr,
+                        data: results.cumulativeBiasByTG['Medium (100-150)'][mfr],
+                        borderColor: CONFIG.colors[mfr],
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: false,
+                        pointRadius: 3
+                    }))
+                },
+                options: tgChartOptions
+            });
+
+            // High TG
+            const ctxHigh = document.getElementById('tgHighChart').getContext('2d');
+            if (tgHighChartInstance) tgHighChartInstance.destroy();
+            tgHighChartInstance = new Chart(ctxHigh, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: CONFIG.majorManufacturers.map(mfr => ({
+                        label: mfr,
+                        data: results.cumulativeBiasByTG['High (>150)'][mfr],
+                        borderColor: CONFIG.colors[mfr],
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: false,
+                        pointRadius: 3
+                    }))
+                },
+                options: tgChartOptions
+            });
+        }
+
+        function renderTables(results) {
+            // CV Summary Table
+            const cvSummary = document.getElementById('cvSummaryTable');
+            const cvRanking = Object.entries(results.finalCV)
+                .filter(([k, v]) => v !== null)
+                .sort((a, b) => a[1] - b[1]);
+
+            cvSummary.innerHTML = `
+                <table>
+                    <tr><th>Rank</th><th>Manufacturer</th><th>Final Cumulative CV%</th><th>Status</th></tr>
+                    ${cvRanking.map(([mfr, cv], idx) => {
+                        const status = cv < 4 ? 'excellent' : cv < 5 ? 'warning' : 'exceed';
+                        const statusText = cv < 4 ? 'Excellent' : cv < 5 ? 'Warning' : 'Exceeds';
+                        return `<tr class="${status}">
+                            <td>${idx + 1}</td>
+                            <td>${mfr}</td>
+                            <td>${cv.toFixed(2)}%</td>
+                            <td>${statusText}</td>
+                        </tr>`;
+                    }).join('')}
+                </table>
+            `;
+
+            // CV Detail Table
+            const cvDetail = document.getElementById('cvDetailTable');
+            cvDetail.innerHTML = `
+                <table>
+                    <tr>
+                        <th>Manufacturer</th>
+                        ${results.roundList.map(r => `<th>${r}</th>`).join('')}
+                    </tr>
+                    ${CONFIG.majorManufacturers.map(mfr => `
+                        <tr>
+                            <td><strong>${mfr}</strong></td>
+                            ${results.cumulativeCV[mfr].map(v =>
+                                `<td>${v !== null ? v.toFixed(2) + '%' : 'N/A'}</td>`
+                            ).join('')}
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+
+            // Bias Summary Table
+            const biasSummary = document.getElementById('biasSummaryTable');
+            const biasRanking = Object.entries(results.finalBias)
+                .filter(([k, v]) => v !== null)
+                .sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]));
+
+            biasSummary.innerHTML = `
+                <table>
+                    <tr><th>Rank</th><th>Manufacturer</th><th>Final Cumulative Bias%</th><th>Status</th></tr>
+                    ${biasRanking.map(([mfr, bias], idx) => {
+                        const absBias = Math.abs(bias);
+                        const status = absBias < 2 ? 'excellent' : absBias < 5 ? 'warning' : 'exceed';
+                        const statusText = absBias < 2 ? 'Excellent' : absBias < 5 ? 'Warning' : 'Exceeds';
+                        return `<tr class="${status}">
+                            <td>${idx + 1}</td>
+                            <td>${mfr}</td>
+                            <td>${bias >= 0 ? '+' : ''}${bias.toFixed(2)}%</td>
+                            <td>${statusText}</td>
+                        </tr>`;
+                    }).join('')}
+                </table>
+            `;
+
+            // Bias Detail Table
+            const biasDetail = document.getElementById('biasDetailTable');
+            biasDetail.innerHTML = `
+                <table>
+                    <tr>
+                        <th>Manufacturer</th>
+                        ${results.roundList.map(r => `<th>${r}</th>`).join('')}
+                    </tr>
+                    ${CONFIG.majorManufacturers.map(mfr => `
+                        <tr>
+                            <td><strong>${mfr}</strong></td>
+                            ${results.cumulativeBias[mfr].map(v =>
+                                `<td>${v !== null ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : 'N/A'}</td>`
+                            ).join('')}
+                        </tr>
+                    `).join('')}
+                </table>
+            `;
+
+            // TG Summary Table
+            const tgSummary = document.getElementById('tgSummaryTable');
+            tgSummary.innerHTML = `
+                <table>
+                    <tr>
+                        <th>Manufacturer</th>
+                        <th>Low TG Bias%</th>
+                        <th>Medium TG Bias%</th>
+                        <th>High TG Bias%</th>
+                        <th>TG Influence</th>
+                    </tr>
+                    ${CONFIG.majorManufacturers.map(mfr => {
+                        const lowArr = results.cumulativeBiasByTG['Low (<100)'][mfr].filter(v => v !== null);
+                        const medArr = results.cumulativeBiasByTG['Medium (100-150)'][mfr].filter(v => v !== null);
+                        const highArr = results.cumulativeBiasByTG['High (>150)'][mfr].filter(v => v !== null);
+
+                        const lowFinal = lowArr.length > 0 ? lowArr[lowArr.length - 1] : null;
+                        const medFinal = medArr.length > 0 ? medArr[medArr.length - 1] : null;
+                        const highFinal = highArr.length > 0 ? highArr[highArr.length - 1] : null;
+                        const influence = results.tgInfluence[mfr];
+
+                        const influenceClass = influence !== null && Math.abs(influence) > 3 ? 'warning' : '';
+
+                        return `<tr class="${influenceClass}">
+                            <td><strong>${mfr}</strong></td>
+                            <td>${lowFinal !== null ? (lowFinal >= 0 ? '+' : '') + lowFinal.toFixed(2) + '%' : 'N/A'}</td>
+                            <td>${medFinal !== null ? (medFinal >= 0 ? '+' : '') + medFinal.toFixed(2) + '%' : 'N/A'}</td>
+                            <td>${highFinal !== null ? (highFinal >= 0 ? '+' : '') + highFinal.toFixed(2) + '%' : 'N/A'}</td>
+                            <td>${influence !== null ? (influence >= 0 ? '+' : '') + influence.toFixed(2) + '%' : 'N/A'}</td>
+                        </tr>`;
+                    }).join('')}
+                </table>
+            `;
+        }
+
+        // ============================================================================
+        // Tab Navigation
+        // ============================================================================
+        function openTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>
